@@ -48,6 +48,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -386,7 +387,7 @@ fun SettingsScreen(navController: NavController) {
 //    Time picker for when to stop playing and slider for volume
     val stop = remember { mutableIntStateOf(180) }
     val volume = remember { mutableFloatStateOf(1.0f) }
-    var isPlaying by remember { mutableStateOf(false) }
+    val uriHandler = LocalUriHandler.current
     Scaffold(
         bottomBar = {
             Row(
@@ -444,6 +445,14 @@ fun SettingsScreen(navController: NavController) {
                 modifier = Modifier.padding(16.dp).fillMaxWidth()
             ){
                 Text(text = "Play Tutorial")
+            }
+            Button(
+                onClick = {
+                    uriHandler.openUri("https://github.com/pawlowskia/SoundsApp.git")
+                },
+                modifier = Modifier.padding(16.dp).fillMaxWidth()
+            ) {
+                Text(text = "Go to GitHub")
             }
         }
     }
