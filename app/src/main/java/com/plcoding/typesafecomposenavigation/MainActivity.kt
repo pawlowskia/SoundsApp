@@ -7,6 +7,7 @@ import android.media.MediaPlayer
 import android.media.SoundPool
 import android.net.Uri
 import android.os.Bundle
+import android.os.CountDownTimer
 import android.provider.MediaStore.Audio
 import android.provider.MediaStore.Video
 import android.util.Log
@@ -17,6 +18,11 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.estimateAnimationDurationMillis
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandHorizontally
+import androidx.compose.animation.fadeIn
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -52,6 +58,8 @@ import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
 import androidx.media3.common.MediaItem
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.navigation.NavController
@@ -80,9 +88,14 @@ import java.io.FileInputStream
 import java.io.FileOutputStream
 import java.io.IOException
 import kotlin.math.round
+import androidx.lifecycle.viewmodel.compose.viewModel
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 var globalVolume = 1.0f
 var globalStop = 0
+var mediaPlayers = emptyList<MediaPlayer>()
 
 class MainActivity : ComponentActivity() {
 
@@ -94,7 +107,12 @@ class MainActivity : ComponentActivity() {
                 val navController = rememberNavController()
                 NavHost(
                     navController = navController,
-                    startDestination = MainScreen
+                    startDestination = MainScreen,
+                    enterTransition = {
+                        expandHorizontally(
+                            animationSpec = tween(1000)
+                        )
+                    }
                 ) {
                     composable<MainScreen> {
                         MainScreen(navController = navController)
@@ -154,11 +172,28 @@ abstract class AudioFileDatabase : RoomDatabase() {
     abstract fun audioFileDao(): AudioFileDao
 }
 
+class MainViewModel : ViewModel() {
+    fun startTimer(){
+        if(globalStop != 0){
+            viewModelScope.launch(Dispatchers.Main) {
+                delay(globalStop * 1000L)
+                for (mediaPlayer in mediaPlayers){
+                    mediaPlayer.stop()
+                    mediaPlayer.release()
+                }
+                mediaPlayers = emptyList()
+                Log.d("MainView", "timer stopped")
+            }
+        }
+    }
+}
+
 @SuppressLint("UnusedMaterial3ScaffoldPaddingParameter")
 @Composable
 fun MainScreen(navController: NavController) {
     val audioFiles = remember { mutableStateListOf<AudioFile>() }
-    var mediaPlayers = emptyList<MediaPlayer>()
+    val viewModel : MainViewModel = viewModel()
+    mediaPlayers = emptyList()
     var isPlaying by remember { mutableStateOf(false) }
     val dao = Room.databaseBuilder(
         LocalContext.current,
@@ -167,6 +202,7 @@ fun MainScreen(navController: NavController) {
     ).allowMainThreadQueries().build().audioFileDao()
     audioFiles.clear()
     audioFiles.addAll(dao.getAll())
+
     Scaffold(
         bottomBar = {
             Row(
@@ -208,6 +244,9 @@ fun MainScreen(navController: NavController) {
                     }
                     else {
                         isPlaying = true
+                        viewModel.startTimer()
+                        Log.d("MainView", "timer started")
+
                         for (audioFile in audioFiles){
                             //    val url = "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3"
                             //    val mediaPlayer = MediaPlayer().apply {
@@ -385,7 +424,7 @@ fun AddScreen(navController: NavController) {
 @Composable
 fun SettingsScreen(navController: NavController) {
 //    Time picker for when to stop playing and slider for volume
-    val stop = remember { mutableIntStateOf(180) }
+    val stop = remember { mutableIntStateOf(10) }
     val volume = remember { mutableFloatStateOf(1.0f) }
     val uriHandler = LocalUriHandler.current
     Scaffold(
@@ -416,12 +455,12 @@ fun SettingsScreen(navController: NavController) {
                 .fillMaxSize()
                 .padding(16.dp)
         ){
-            Text(text = "Stop playing after " + stop.intValue + "mins.", modifier = Modifier.padding(16.dp))
+            Text(text = "Stop playing after " + stop.intValue + "secs.", modifier = Modifier.padding(16.dp))
             Slider(
                 value = stop.intValue.toFloat(),
                 onValueChange = { stop.intValue = it.toInt() },
-                valueRange = 0.0f..180.0f,
-                steps = 9,
+                valueRange = 0.0f..10.0f,
+                steps = 99,
                 modifier = Modifier
                     .padding(16.dp)
                     .fillMaxWidth()
